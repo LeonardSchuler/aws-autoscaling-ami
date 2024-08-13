@@ -12,8 +12,3 @@ output "private_subnets" {
   description = "List of IDs of private subnets"
   value       = module.vpc.private_subnets
 }
-
-output "vpc_dhcp_options_id" {
-  description = "The ID of the DHCP options set"
-  value       = module.vpc.vpc_dhcp_options_id
-}

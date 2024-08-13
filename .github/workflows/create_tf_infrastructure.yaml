@@ -21,8 +21,24 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Check stage exists
+        id: check-dir
+        run: |
+          if [ -d "${{ env.WORKING_DIRECTORY }}" ]; then
+            echo "Stage exists. Proceeding with deployment."
+            echo "stage_exists=true" >> "$GITHUB_ENV"
+          else
+            echo "Stage does not exist. No deployment."
+            echo "stage_exists=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Info
+        run: |
+          echo "WORKING_DIRECTORY: ${{ env.WORKING_DIRECTORY }}"
+          echo "stage_exists=$stage_exists"
 
       - name: Set up AWS CLI
+        if: ${{ env.stage_exists == 'true' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ secrets.AWS_REGION }}
@@ -30,29 +46,45 @@ jobs:
           role-session-name: github-actions
 
       - name: Configure Terraform backend
-        if: ${{ hashFiles('${{ env.WORKING_DIRECTORY }}') != '' }}
+        if: ${{ env.stage_exists == 'true' }}
         run: |
           REPO_NAME=$(basename $GITHUB_REPOSITORY)
           echo "Inferred REPO_NAME: $REPO_NAME"
-          scripts/create_backend_tf.sh ${{ inputs.environment }} ${{ inputs.stage }} $REPO_NAME >  ${{ env.WORKING_DIRECTORY }}/${{ inputs.stage }}/backend.tf
+          scripts/create_backend_tf.sh ${{ inputs.environment }} ${{ inputs.stage }} $REPO_NAME >  ${{ env.WORKING_DIRECTORY }}/backend.tf
 
       - name: Set up Terraform
-        if: ${{ hashFiles('${{ env.WORKING_DIRECTORY }}') != '' }}
-        uses: hashicorp/setup-terraform@v2
+        if: ${{ env.stage_exists == 'true' }}
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.4
 
       - name: Terraform Init
-        if: ${{ hashFiles('${{ env.WORKING_DIRECTORY }}') != '' }}
+        if: ${{ env.stage_exists == 'true' }}
         run: terraform init > /dev/null
         working-directory: ${{ env.WORKING_DIRECTORY }}
 
       - name: Terraform Plan
-        if: ${{ hashFiles('${{ env.WORKING_DIRECTORY }}') != '' }}
-        run: terraform plan > /dev/null
+        id: terraform-plan
+        if: ${{ env.stage_exists == 'true' }}
+        run: terraform plan > plan_output.log 2>&1
         working-directory: ${{ env.WORKING_DIRECTORY }}
 
+      - name: Upload Terraform Plan Log as artifact on failure
+        if: ${{ failure() && steps.terraform-plan.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-log
+          path: ${{ env.WORKING_DIRECTORY }}/plan_output.log
+
       - name: Terraform Apply
-        if: ${{ hashFiles('${{ env.WORKING_DIRECTORY }}') != '' }}
-        run: terraform apply -auto-approve > /dev/null
+        id: terraform-apply
+        if: ${{ env.stage_exists == 'true' }}
+        run: terraform apply -auto-approve > apply_output.log 2>&1
         working-directory: ${{ env.WORKING_DIRECTORY }}
+
+      - name: Upload Terraform Apply Log as artifact on failure
+        if: ${{ failure() && steps.terraform-apply.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-apply-log
+          path: ${{ env.WORKING_DIRECTORY }}/apply_output.log
