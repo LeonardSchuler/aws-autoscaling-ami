@@ -28,7 +28,7 @@ fi
 
 ENVIRONMENT=$1
 REGION=$AWS_REGION
-
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --output json | jq -r '.Account')
 # yourgithubuser/yourgithubrepo
 ORIGIN_REPO=$(git config --get remote.origin.url | sed -e 's,.*:\(.*\)\.git,\1,g')
 
@@ -225,15 +225,17 @@ dynamodb_table=$(echo "$json_output" | jq -r '.dynamodb_table')
 role_arn=$(terraform output -raw cicd_role_arn)
 
 # Output the values
-echo "S3 State Bucket Name: $bucket_name"
-echo "S3 State Lock DynamoDB Table Name: $dynamodb_table_name"
-echo "CICD GitHub role with access to AWS: $role_arn"
-echo "Region: $REGION"
-echo
-  
+cat << EOF
 
-echo "Create a backend configuration file for remote state using"
-echo "$script_dir/create_backend_tf.sh $ENVIRONMENT $STAGE_NAME $APPLICATION"
+Summary
+S3 State Bucket Name: $bucket_name
+S3 State Lock DynamoDB Table Name: $dynamodb_table_name
+CICD GitHub role with access to AWS: $role_arn
+Region: $REGION"
+
+Create a backend configuration file for remote state using
+$script_dir/create_backend_tf.sh $ENVIRONMENT $STAGE_NAME $APPLICATION
+EOF
 
 # Create a backend configuration file for remote state
 # be careful you are in the $STAGE_DIR already
@@ -244,11 +246,22 @@ if [ $backend_tf_content_creation_exit_code -ne 0 ]; then
     echo "Error creating backend.tf for remote state tracking. Leaving only local state." >&2
     exit 1
   fi
-  echo "$backend_tf_content" > "$STAGE_DIR/backend.tf"
+  echo "$backend_tf_content" > backend.tf
 
   # Reinitialize Terraform with the new backend configuration
   terraform init -migrate-state
 
   # Output success message
-  echo "Terraform state has been migrated to the remote S3 backend."
+  echo "Terraform state has been successfully migrated to the remote S3 backend."
+  rm terraform.tfstate*
 fi
+
+cat << EOF
+
+In GitHub create a new environment called: '$ENVIRONMENT' at
+https://github.com/$ORIGIN_REPO/settings/environments
+and set the following secrets in that environment:
+AWS_ACCOUNT_ID: $AWS_ACCOUNT_ID
+AWS_REGION:   $REGION
+AWS_ROLE_ARN: $role_arn
+EOF

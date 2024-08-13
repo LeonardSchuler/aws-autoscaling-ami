@@ -1,0 +1,28 @@
+name: Main Workflow
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Infrastructure environment"
+        required: true
+        default: "dev"
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/create_tf_infrastructure.yaml
+    with:
+      environment: ${{ github.event.inputs.environment || 'dev' }}
+      stage: 300_deploy
+    secrets: inherit

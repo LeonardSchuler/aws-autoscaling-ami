@@ -1,0 +1,58 @@
+name: Reusable Deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      stage:
+        required: true
+        type: string
+        default: "300_deploy"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      WORKING_DIRECTORY: "./infrastructure/environments/${{ inputs.environment }}/stages/${{ inputs.stage }}"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up AWS CLI
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-actions
+
+      - name: Configure Terraform backend
+        if: ${{ hashFiles('${{ env.WORKING_DIRECTORY }}') != '' }}
+        run: |
+          REPO_NAME=$(basename $GITHUB_REPOSITORY)
+          echo "Inferred REPO_NAME: $REPO_NAME"
+          scripts/create_backend_tf.sh ${{ inputs.environment }} ${{ inputs.stage }} $REPO_NAME >  ${{ env.WORKING_DIRECTORY }}/${{ inputs.stage }}/backend.tf
+
+      - name: Set up Terraform
+        if: ${{ hashFiles('${{ env.WORKING_DIRECTORY }}') != '' }}
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.9.4
+
+      - name: Terraform Init
+        if: ${{ hashFiles('${{ env.WORKING_DIRECTORY }}') != '' }}
+        run: terraform init > /dev/null
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+
+      - name: Terraform Plan
+        if: ${{ hashFiles('${{ env.WORKING_DIRECTORY }}') != '' }}
+        run: terraform plan > /dev/null
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+
+      - name: Terraform Apply
+        if: ${{ hashFiles('${{ env.WORKING_DIRECTORY }}') != '' }}
+        run: terraform apply -auto-approve > /dev/null
+        working-directory: ${{ env.WORKING_DIRECTORY }}
