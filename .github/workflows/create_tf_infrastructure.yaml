@@ -50,7 +50,7 @@ jobs:
         run: |
           REPO_NAME=$(basename $GITHUB_REPOSITORY)
           echo "Inferred REPO_NAME: $REPO_NAME"
-          scripts/create_backend_tf.sh ${{ inputs.environment }} ${{ inputs.stage }} $REPO_NAME >  ${{ env.WORKING_DIRECTORY }}/backend.tf
+          infrastructure/scripts/002_create_backend_tf.sh ${{ inputs.environment }} ${{ inputs.stage }} $REPO_NAME >  ${{ env.WORKING_DIRECTORY }}/backend.tf
 
       - name: Set up Terraform
         if: ${{ env.stage_exists == 'true' }}

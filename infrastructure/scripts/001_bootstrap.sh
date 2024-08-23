@@ -49,7 +49,7 @@ STAGE_DIR="infrastructure/environments/$ENVIRONMENT/stages/$STAGE_NAME"
 # Check that AWS environment variables are set
 check_aws_env_vars
 
-backend_tf_content=$($script_dir/create_backend_tf.sh $ENVIRONMENT $STAGE_NAME $APPLICATION)
+backend_tf_content=$($script_dir/002_create_backend_tf.sh $ENVIRONMENT $STAGE_NAME $APPLICATION)
 backend_tf_content_creation_exit_code=$?
 
 
@@ -240,7 +240,7 @@ EOF
 # Create a backend configuration file for remote state
 # be careful you are in the $STAGE_DIR already
 if [ $backend_tf_content_creation_exit_code -ne 0 ]; then
-  backend_tf_content=$($script_dir/create_backend_tf.sh $ENVIRONMENT $STAGE_NAME $APPLICATION)
+  backend_tf_content=$($script_dir/002_create_backend_tf.sh $ENVIRONMENT $STAGE_NAME $APPLICATION)
   backend_tf_content_creation_exit_code=$?
   if [ $backend_tf_content_creation_exit_code -ne 0 ]; then
     echo "Error creating backend.tf for remote state tracking. Leaving only local state." >&2
